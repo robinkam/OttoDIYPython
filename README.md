@@ -1,40 +1,13 @@
-# OttoDIYPython
+# OttoDIYPython for ESP boards
 
-This is a port of the OttoDIY Robot API ([Otto9.h](https://github.com/OttoDIY/OttoDIYLib/blob/master/Otto9.h) & Otto9Humanoid.h) to a [micropython based esp platform](https://docs.micropython.org/en/latest/esp8266/tutorial/intro.html)
+This project is based on the [OttoDIYPython](https://github.com/OttoDIY/OttoDIYPython) project and targeting to wireless control the OTTO using the WIFI capability on ESP32/ESP8266 development boards.
 
-This project has just begun ... it's not ready for use yet ... [please look at 
-the issues](https://github.com/OttoDIY/OttoDIYPython/issues) to see if you can help make this a reality ...
+## How to run
 
-we now have added the humanoid support 😄 ... [Read this issue post](https://github.com/OttoDIY/OttoDIYPython/issues/17) to see how it's used ...
+1) Install Micropython firmware onto your microcontroller (recommend Wemos S2 mini)
+2) Upload these files on to the board (recommend Thonny)
+3) Run the main.py file from the REPL manually or just power up the OTTO (the main.py will be executed automatically)
+4) Connect your smartphone or computer to the AP (default SSID: OTTO_on_ESP) created by the ESP board
+5) Open the OTTO console page by visit http://192.168.4.1 in any web browser on your smartphone or computer that has connected to the OTTO.
+6) Click buttons on the OTTO console page to explore the moves implemented in  [OttoDIYPython](https://github.com/OttoDIY/OttoDIYPython) project.
 
-The Motion Code has been ported ... and a test file has been created ... to test this out
-
-1) Install Micropython onto your microcontroller (I used a esp8266 nodemcu board)
-2) Upload these files on to the board ... Use uPyCraft or ampy
-3) run the Otto_allmoves_V9.py file from the REPL with the following command
-
-`>>> exec(open('./Otto_allmoves_V9.py').read(),globals())`
-
-### Example Code
-```
-"""
-Otto All moves python test 
-OttDIY Python Project, 2020 | sfranzyshen
-"""
-import otto9, time
-
-Otto = otto9.Otto9()
-Otto.init(5, 12, 13, 14, True, 0, 1, 2, 3)
-Otto.home()
-
-Otto.walk(2, 1000, 1) #-- 2 steps, "TIME". IF HIGHER THE VALUE THEN SLOWER (from 600 to 1400), 1 FORWARD
-Otto.walk(2, 1000, -1) #-- 2 steps, T, -1 BACKWARD 
-Otto.turn(2, 1000, 1) #-- 3 steps turning LEFT
-Otto.home()
-time.sleep_ms(100)  
-Otto.turn(2, 1000, -1) #-- 3 steps turning RIGHT 
-Otto.bend(1, 500, 1) #-- usually steps =1, T=2000
-Otto.bend(1, 2000, -1)     
-Otto.shakeLeg(1, 1500, 1)
-Otto.home()
-```

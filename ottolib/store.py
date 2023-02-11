@@ -1,4 +1,4 @@
-#-- OttDIY Python Project, 2020
+# -- OttDIY Python Project, 2020
 
 import json
 import os
@@ -19,7 +19,7 @@ def save(key, value):
     f.close()
 
 
-def load(key, default = None):
+def load(key, default=None):
     filename = STOREDIR + '/' + key + '.json'
 
     try:
@@ -29,6 +29,6 @@ def load(key, default = None):
         f.close()
         return value
     except:
-        if default == None:
+        if default is None:
             raise ValueError()
         return default

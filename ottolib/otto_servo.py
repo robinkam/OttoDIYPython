@@ -1,21 +1,26 @@
-#-- A simple class for controlling hobby servos. Modeled after the ESP8266 Arduino Servo Driver
-#-- OttDIY Python Project, 2020
+# -- A simple class for controlling hobby servos. Modeled after the ESP8266 Arduino Servo Driver
+# -- OttDIY Python Project, 2020
 
 import machine
 
 try:
     from esp32 import Servo as espServo
+
     useServo = True
 except ImportError:
     """This version of esp32 doesn't support Servo, use PWM instead"""
+
+
     def espServo(_arg):
         print("espServo not defined")
         raise ImportError
+
+
     useServo = False
 
 
 class Servo:
-    def __init__(self, freq = 50, min_us = 1000, max_us = 2000, max_ang = 180):
+    def __init__(self, freq=50, min_us=1000, max_us=2000, max_ang=180):
         global useServo
         self.min_us = min_us
         self.max_us = max_us
@@ -34,7 +39,7 @@ class Servo:
         if useServo:
             self.servo = espServo(self.pin)
         else:
-            self.pwm = machine.PWM(self.pin, freq = self.freq)
+            self.pwm = machine.PWM(self.pin, freq=self.freq)
         self._attached = True
 
     def detach(self):
