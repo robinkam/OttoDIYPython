@@ -7,6 +7,7 @@ from machine import Pin, ADC
 from micropython import const
 
 from ottolib import oscillator, gestures, store
+from ottolib.us import us
 
 
 def DEG2RAD(g):
@@ -70,6 +71,9 @@ class Otto9:
         self.buzzer = Buzzer
         self.usTrigger = USTrigger
         self.usEcho = USEcho
+
+        if self.usTrigger >= 0 and self.usEcho >= 0:
+            self.us = us(self.usTrigger, self.usEcho)
 
         if self.buzzer >= 0:
             self.buzzerPin = Pin(self.buzzer, Pin.OUT)
@@ -195,6 +199,26 @@ class Otto9:
         self._moveServos(T, up)
         self._moveServos(T, down)
 
+    # -- Otto gait: Dash  (forward or backward, no arm movement)
+    # --  Parameters:
+    # --    * steps:  Number of steps
+    # --    * T : Period
+    # --    * Dir: Direction: FORWARD / BACKWARD
+    def dash(self, steps, T, dir):
+        # -- Oscillator parameters for walking
+        # -- Hip sevos are in phase
+        # -- Feet servos are in phase
+        # -- Hip and feet are 90 degrees out of phase
+        # --      -90 : Walk forward
+        # --       90 : Walk backward
+        # -- Feet servos also have the same offset (for tiptoe a little bit)
+        A = [30, 30, 20, 20, 0, 0]
+        O = [0, 0, 4, -4, self._servo_position[4]-90, self._servo_position[5]-90]
+        phase_diff = [0, 0, DEG2RAD(dir * -90), DEG2RAD(dir * -90), 0, 0]
+
+        # -- Let's oscillate the servos!
+        self._execute(A, O, T, phase_diff, steps)
+
     # -- Otto gait: Walking  (forward or backward)
     # --  Parameters:
     # --    * steps:  Number of steps
@@ -280,23 +304,27 @@ class Otto9:
         # -- This variable change the amount of shakes
         numberLegMoves = 2
 
+        shakeDelta1 = [-30, -90]
+        shakeDelta2 = [-30, 20]
+        shakeDelta3 = [-30, -20]
+
         # -- Parameters of all the movements. Default: Right leg
-        shake_leg1 = [90, 90, 40, 35, 90, 90]
-        shake_leg2 = [90, 90, 40, 120, 100, 80]
-        shake_leg3 = [90, 90, 70, 60, 80, 100]
+        shake_leg1 = [90, 90, 90 + shakeDelta1[0], 90 + shakeDelta1[1], 90, 90]
+        shake_leg2 = [90, 90, 90 + shakeDelta2[0], 90 + shakeDelta2[1], 100, 80]
+        shake_leg3 = [90, 90, 90 + shakeDelta3[0], 90 + shakeDelta3[1], 80, 100]
         homes = [90, 90, 90, 90, 90, 90]
 
         # -- Changes in the parameters if right leg is chosen
-        if dir == RIGHT:
-            shake_leg1[2] = 180 - 15
-            shake_leg1[3] = 180 - 40
-            shake_leg2[2] = 180 - 120
-            shake_leg2[3] = 180 - 58
-            shake_leg3[2] = 180 - 60
-            shake_leg3[3] = 180 - 58
+        if dir == LEFT:
+            shake_leg1[2] = 90 - shakeDelta1[1]
+            shake_leg1[3] = 90 - shakeDelta1[0]
+            shake_leg2[2] = 90 - shakeDelta2[1]
+            shake_leg2[3] = 90 - shakeDelta2[0]
+            shake_leg3[2] = 90 - shakeDelta3[1]
+            shake_leg3[3] = 90 - shakeDelta3[0]
 
         # -- Time of the bend movement. Fixed parameter to avoid falls
-        T2 = 1000
+        T2 = 500
 
         # -- Time of one shake, in order to avoid movements too fast.
         T = T - T2
@@ -313,8 +341,8 @@ class Otto9:
             while i < numberLegMoves:
                 self._moveServos(T / (2 * numberLegMoves), shake_leg3)
                 self._moveServos(T / (2 * numberLegMoves), shake_leg2)
-                self._moveServos(500, homes)  # -- Return to home position
                 i += 1
+            self._moveServos(500, homes)  # -- Return to home position
             j += 1
         utime.sleep_ms(T)
 
@@ -427,6 +455,30 @@ class Otto9:
         # -- Let's oscillate the servos!
         self._execute(A, O, T, phase_diff, steps)
 
+    # -- Otto gait: Dodge. moonwalk but no arm movement
+    # --  Parameters:
+    # --    Steps: Number of steps
+    # --    T: Period
+    # --    h: Height. Typical valures between 15 and 40
+    # --    dir: Direction: LEFT / RIGHT
+    def dodge(self, steps, T, h, dir):
+        # -- This motion is similar to that of the caterpillar robots: A travelling
+        # -- wave moving from one side to another
+        # -- The two Otto's feet are equivalent to a minimal configuration. It is known
+        # -- that 2 servos can move like a worm if they are 120 degrees out of phase
+        # -- In the example of Otto, two feet are mirrored so that we have:
+        # --    180 - 120 = 60 degrees. The actual phase difference given to the oscillators
+        # --  is 60 degrees.
+        # --  Both amplitudes are equal. The offset is half the amplitud plus a little bit of
+        # -   offset so that the robot tiptoe lightly
+        A = [0, 0, h, h, 0, 0]
+        O = [0, 0, h / 2 + 2, -h / 2 - 2, self._servo_position[4]-90, self._servo_position[5]-90]
+        phi = -dir * 90
+        phase_diff = [0, 0, DEG2RAD(phi), DEG2RAD(-60 * dir + phi), DEG2RAD(phi), DEG2RAD(phi)]
+
+        # -- Let's oscillate the servos!
+        self._execute(A, O, T, phase_diff, steps)
+
     # -- Otto gait: Crusaito. A mixture between moonwalker and walk
     # --   Parameters:
     # --     steps: Number of steps
@@ -455,6 +507,21 @@ class Otto9:
         # -- Let's oscillate the servos!
         self._execute(A, O, T, phase_diff, steps)
 
+    # -- Otto arm movement
+    # --  Parameters:
+    # --    T: Period
+    # --    h: height (Values between -45 ~ 90, positive value means raising arm)
+    # --    dir: direction: LEFT, RIGHT
+    def moveArm(self, T, h, dir):
+        if self._servo_totals > 4:
+            shallowCopy = self._servo_position[:]
+            if dir == RIGHT:
+                shallowCopy[5] = h + 90
+                self._moveServos(T, shallowCopy)
+            if dir == LEFT:
+                shallowCopy[4] = abs(h - 90)
+                self._moveServos(T, shallowCopy)
+
     # -- Otto movement: Hands up
     def handsup(self):
         if self._servo_totals > 4:
@@ -465,17 +532,23 @@ class Otto9:
     def handwave(self, dir):
         if self._servo_totals > 4:
             if dir == RIGHT:
-                A = [0, 0, 0, 0, 30, 0]
-                O = [0, 0, 0, 0, -30, -40]
-                phase_diff = [0, 0, 0, 0, DEG2RAD(0), 0]
-                # -- Let's oscillate the servos!
-                self._execute(A, O, 1000, phase_diff, 5)
-            if dir == LEFT:
                 A = [0, 0, 0, 0, 0, 30]
-                O = [0, 0, 0, 0, 40, 60]
-                phase_diff = [0, 0, 0, 0, 0, DEG2RAD(0)]
+                O = [0, 0, 0, 0, 0, 30]
+                phase_diff = [0, 0, 0, 0, 0, 0]
                 # -- Let's oscillate the servos!
-                self._execute(A, O, 1000, phase_diff, 1)
+                self._execute(A, O, 1000, phase_diff, 2)
+            if dir == LEFT:
+                A = [0, 0, 0, 0, 30, 0]
+                O = [0, 0, 0, 0, -30, 0]
+                phase_diff = [0, 0, 0, 0, 0, 0]
+                # -- Let's oscillate the servos!
+                self._execute(A, O, 1000, phase_diff, 2)
+
+    # -- Otto get US distance
+    # -- returns distance in cm
+    def getDistance(self):
+        return self.us.distance_cm()
+
 
     # -- Gestures
 

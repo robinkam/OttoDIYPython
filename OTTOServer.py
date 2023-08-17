@@ -2,20 +2,21 @@ import machine
 from micropython import const
 from webserver import ESPWebServer
 import ottolib.otto9 as otto9
+import time
 
-Otto = otto9.Otto9()
+otto = otto9.Otto9()
 
-MODE_ONCE = const(0)
-MODE_REPEAT = const(1)
+MODE_ONCE = const(0)  # on demand mode
+MODE_REPEAT = const(1)  # continuous mode
 ACTION_IDLE = 'idle'
-GPIO_NUM = const(15)  # Builtin led (Wemos S2 mini)
+LED_GPIO_NUM = const(15)  # Builtin led (Wemos S2 mini)
 
 mode = MODE_ONCE
 action = ACTION_IDLE
 params = {}
 
 # Get pin object for controlling builtin LED
-pin = machine.Pin(GPIO_NUM, machine.Pin.OUT)
+ledPin = machine.Pin(LED_GPIO_NUM, machine.Pin.OUT)
 
 
 def handleAction(socket, args, act):
@@ -28,25 +29,30 @@ def handleAction(socket, args, act):
 
 # Handler for path "/cmd/home"
 def handleHome(socket, args):
-    Otto.home()
+    otto.home()
     handleAction(socket, args, "home")
 
 
 # Handler for path "/cmd/handsup"
 def handleHandsUp(socket, args):
-    Otto.handsup()
+    otto.handsup()
     handleAction(socket, args, "handsup")
 
 
 # Handler for path "/cmd/handwave?direction=[1|-1]"
 def handleHandWave(socket, args):
-    Otto.handwave(int(args['direction']))
+    otto.handwave(int(args['direction']))
     handleAction(socket, args, "handwave")
 
 
 # Handler for path "/cmd/jump?steps=[1,10]&period=[600,1400]"
 def handleJump(socket, args):
     handleAction(socket, args, 'jump')
+
+
+# Handler for path "/cmd/dash?steps=[1,10]&period=[600,1400]&direction=[1|-1]"
+def handleDash(socket, args):
+    handleAction(socket, args, 'dash')
 
 
 # Handler for path "/cmd/walk?steps=[1,10]&period=[600,1400]&direction=[1|-1]"
@@ -61,14 +67,20 @@ def handleTurn(socket, args):
 
 # Handler for path "/cmd/bend?steps=[1,10]&period=[600,1400]&direction=[1|-1]"
 def handleBend(socket, args):
-    Otto.bend(int(args['steps']), int(args['period']), int(args['direction']))
+    otto.bend(int(args['steps']), int(args['period']), int(args['direction']))
     handleAction(socket, args, "bend")
 
 
 # Handler for path "/cmd/shakeLeg?steps=[1,10]&period=[600,1400]&direction=[1|-1]"
 def handleShakeLeg(socket, args):
-    Otto.shakeLeg(int(args['steps']), int(args['period']), int(args['direction']))
+    otto.shakeLeg(int(args['steps']), int(args['period']), int(args['direction']))
     handleAction(socket, args, "shakeLeg")
+
+
+# Handler for path "/cmd/moveArm?period=[100,1400]&height=[-45,90]&direction=[1|-1]"
+def handleMoveArm(socket, args):
+    otto.moveArm(int(args['period']), int(args['height']), int(args['direction']))
+    handleAction(socket, args, "moveArm")
 
 
 # Handler for path "/cmd/moonwalker?steps=[1,10]&period=[600,1400]&height=[15,40]&direction=[1|-1]"
@@ -88,12 +100,12 @@ def handleFlapping(socket, args):
 
 # Handler for path "/cmd/updown?steps=[1,10]&period=[600,1400]&height=[0,90]"
 def handleUpdown(socket, args):
-    handleAction(socket, args, "shakeLeg")
+    handleAction(socket, args, "updown")
 
 
 # Handler for path "/cmd/swing?steps=[1,10]&period=[600,1400]&height=[0,90]"
 def handleSwing(socket, args):
-    handleAction(socket, args, "shakeLeg")
+    handleAction(socket, args, "swing")
 
 
 # Handler for path "/cmd/tiptoeSwing?steps=[1,10]&period=[600,1400]&height=[0,90]"
@@ -113,14 +125,14 @@ def handleJitter(socket, args):
 
 # Handler for path "/cmd/playGesture"
 def handleGesture(socket, args):
-    Otto.playGesture(int(args["gesture"]))
+    otto.playGesture(int(args["gesture"]))
     ESPWebServer.ok(socket, "200", "playGesture")
 
 
 # Handler for path "/cmd/saveTrims"
 def handleSaveTrims(socket, args):
-    Otto.setTrims(int(args["YL"]), int(args["YR"]), int(args["RL"]), int(args["RR"]), int(args["LA"]), int(args["RA"]))
-    Otto.saveTrimsOnEEPROM()
+    otto.setTrims(int(args["YL"]), int(args["YR"]), int(args["RL"]), int(args["RR"]), int(args["LA"]), int(args["RA"]))
+    otto.saveTrimsOnEEPROM()
     ESPWebServer.ok(socket, "200", "saveTrims")
 
 
@@ -137,8 +149,8 @@ class OTTOServer:
 
     @staticmethod
     def setup():
-        Otto.initHUMANOID(12, 11, 9, 7, 33, 35, True, -1, -1, -1, -1)  # s2 mini + IO shields pins
-        # Otto.init(12, 11, 9, 7, True, -1, -1, -1, -1)  # s2 mini + IO shields pins
+        otto.initHUMANOID(12, 11, 9, 7, 33, 35, True, -1, -1, 18, 5)  # s2 mini + IO shields pins
+        # otto.home()  # Sometimes, call home() may cause sudden high electric current consumption and make OTTO 'cramp'.
 
         # Start the server @ port 8899
         # ESPWebServer.begin(8899)
@@ -151,11 +163,13 @@ class OTTOServer:
         ESPWebServer.onPath("/cmd/jump", handleJump)
         ESPWebServer.onPath("/cmd/handwave", handleHandWave)
 
+        ESPWebServer.onPath("/cmd/dash", handleDash)
         ESPWebServer.onPath("/cmd/walk", handleWalk)
         ESPWebServer.onPath("/cmd/turn", handleTurn)
 
         ESPWebServer.onPath("/cmd/bend", handleBend)
         ESPWebServer.onPath("/cmd/shakeLeg", handleShakeLeg)
+        ESPWebServer.onPath("/cmd/moveArm", handleMoveArm)
         ESPWebServer.onPath("/cmd/moonwalker", handleMoonwalker)
         ESPWebServer.onPath("/cmd/crusaito", handleCrusaito)
         ESPWebServer.onPath("/cmd/flapping", handleFlapping)
@@ -179,43 +193,63 @@ class OTTOServer:
 
     @staticmethod
     def start():
-        pin.on()  # Turn LED off (it use sinking input)
+        ledPin.on()  # Turn LED off (it use sinking input)
+
+        lastDistanceDetectionTime = time.ticks_us()
 
         try:
             while True:
+
                 # Let server process requests
                 ESPWebServer.handleClient()
 
                 global action, params, mode
                 args = params
 
+
                 if action == 'jump':
-                    Otto.jump(int(args['steps']), int(args['period']))
+                    otto.jump(int(args['steps']), int(args['period']))
+                elif action == 'dash':
+                    otto.dash(int(args['steps']), int(args['period']), int(args['direction']))
                 elif action == 'walk':
-                    Otto.walk(int(args['steps']), int(args['period']), int(args['direction']))
+                    otto.walk(int(args['steps']), int(args['period']), int(args['direction']))
                 elif action == 'turn':
-                    Otto.turn(int(args['steps']), int(args['period']), int(args['direction']))
+                    otto.turn(int(args['steps']), int(args['period']), int(args['direction']))
                 elif action == 'moonwalker':
-                    Otto.moonwalker(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
+                    otto.moonwalker(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
                 elif action == 'crusaito':
-                    Otto.crusaito(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
+                    otto.crusaito(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
                 elif action == 'flapping':
-                    Otto.flapping(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
+                    otto.flapping(int(args['steps']), int(args['period']), int(args['height']), int(args['direction']))
                 elif action == 'updown':
-                    Otto.updown(int(args['steps']), int(args['period']), int(args['height']))
+                    otto.updown(int(args['steps']), int(args['period']), int(args['height']))
                 elif action == 'swing':
-                    Otto.swing(int(args['steps']), int(args['period']), int(args['height']))
+                    otto.swing(int(args['steps']), int(args['period']), int(args['height']))
                 elif action == 'tiptoeSwing':
-                    Otto.tiptoeSwing(int(args['steps']), int(args['period']), int(args['height']))
+                    otto.tiptoeSwing(int(args['steps']), int(args['period']), int(args['height']))
                 elif action == 'ascendingTurn':
-                    Otto.ascendingTurn(int(args['steps']), int(args['period']), int(args['height']))
+                    otto.ascendingTurn(int(args['steps']), int(args['period']), int(args['height']))
                 elif action == 'jitter':
-                    Otto.jitter(int(args['steps']), int(args['period']), int(args['height']))
+                    otto.jitter(int(args['steps']), int(args['period']), int(args['height']))
 
                 if mode == MODE_ONCE:
                     action = ACTION_IDLE
 
+                # avoid obstacles with ultrasonic sensor
+                if hasattr(otto, 'us'):  # us = ultra-sonic
+                    now = time.ticks_us()
+                    deltaTime = now - lastDistanceDetectionTime
+                    if deltaTime > 1000000:  # detect distance per 1 second
+                        lastDistanceDetectionTime = now
+                        distance = otto.getDistance()
+                        if distance < 10:
+                            print('Attention! Obstacles are ' + str(distance) + 'cm away. Back up now.')
+                            otto.walk(2, 1000, -1)
+                            action = ACTION_IDLE  # walk backward for 2 steps and stop moving.
+                        else:
+                            print('front distance: ', str(distance))
+
         except OSError as error:
             print(error)
-            pin.off()
+            ledPin.off()
             ESPWebServer.close()
